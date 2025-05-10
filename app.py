@@ -1,20 +1,14 @@
 import streamlit as st
 from transformers import pipeline
 
-# Load pre-trained model for text generation
-chatbot = pipeline("text-generation", model="microsoft/DialoGPT-medium")
+# Use a lightweight model that works well in Streamlit Cloud
+chatbot = pipeline("text-generation", model="distilgpt2")
 
-def main():
-    st.title("Simple AI Chatbot")
-    st.write("Chat with the AI chatbot below!")
+st.title("Basic AI Chatbot")
+st.write("Ask anything!")
 
-    # Get user input
-    user_input = st.text_input("You:", "")
+user_input = st.text_input("You:")
 
-    if user_input:
-        # Generate a response from the chatbot
-        response = chatbot(user_input, max_length=1000, num_return_sequences=1)
-        st.write(f"Chatbot: {response[0]['generated_text']}")
-
-if __name__ == "__main__":
-    main()
+if user_input:
+    response = chatbot(user_input, max_length=100, do_sample=True, top_k=50)
+    st.write(f"Bot: {response[0]['generated_text']}")
