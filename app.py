@@ -1,20 +1,62 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+import streamlit as st
+from transformers import pipeline
+import os
 
+# --- Title and Instructions ---
+st.set_page_config(page_title="FAQ Chatbot", layout="centered")
+st.title("📚 AI-Powered FAQ Chatbot")
+st.write("Ask a question based on our FAQ. Example questions:")
+st.markdown("- How do I reset my password?\n- What is your return policy?\n- What payment methods are accepted?")
 
-tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
-model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
+st.markdown("---")
 
-# Let's chat for 5 lines
-for step in range(5):
-    # encode the new user input, add the eos_token and return a tensor in Pytorch
-    new_user_input_ids = tokenizer.encode(input(">> User:") + tokenizer.eos_token, return_tensors='pt')
+# --- Load Hugging Face Question Answering Model ---
+@st.cache_resource
+def load_model():
+    return pipeline("question-answering")
 
-    # append the new user input tokens to the chat history
-    bot_input_ids = torch.cat([chat_history_ids, new_user_input_ids], dim=-1) if step > 0 else new_user_input_ids
+qa_pipeline = load_model()
 
-    # generated a response while limiting the total chat history to 1000 tokens, 
-    chat_history_ids = model.generate(bot_input_ids, max_length=1000, pad_token_id=tokenizer.eos_token_id)
+# --- FAQ Context (Hardcoded) ---
+faq_context = """
+You can reset your password by clicking 'Forgot Password' on the login page.
+Shipping typically takes 3–5 business days. We accept Visa, Mastercard, and PayPal.
+Returns are accepted within 30 days of purchase with receipt.
+Customer support is available via email from 9am to 6pm Monday to Friday.
+"""
 
-    # pretty print last ouput tokens from bot
-    print("DialoGPT: {}".format(tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)))
+# --- User Input ---
+question = st.text_input("❓ Your question:")
+
+if question:
+    with st.spinner("Generating answer..."):
+        result = qa_pipeline({
+            'question': question,
+            'context': faq_context
+        })
+        answer = result['answer']
+    st.success(f"💡 **Answer:** {answer}")
+
+    # --- Feedback Buttons ---
+    st.markdown("Was this answer helpful?")
+    col1, col2 = st.columns(2)
+
+    if col1.button("👍 Helpful"):
+        with open("feedback.txt", "a") as f:
+            f.write(f"{question} | Helpful\n")
+        st.toast("Thanks for your feedback! 😊", icon="✅")
+
+    if col2.button("👎 Not Helpful"):
+        with open("feedback.txt", "a") as f:
+            f.write(f"{question} | Not Helpful\n")
+        st.toast("We'll use this to improve! 🛠️", icon="⚠️")
+
+    # --- Optional Feedback Stats ---
+    if os.path.exists("feedback.txt"):
+        with open("feedback.txt") as f:
+            lines = f.readlines()
+            helpful = sum("Helpful" in line for line in lines)
+            not_helpful = sum("Not Helpful" in line for line in lines)
+        st.markdown("---")
+        st.write(f"📊 Feedback Summary:")
+        st.write(f"👍 Helpful: {helpful} | 👎 Not Helpful: {not_helpful}")
